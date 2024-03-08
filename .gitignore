@@ -160,7 +160,7 @@ cython_debug/
 #.idea/
 
 /Accounts
-/*.code-workspace
+AutoXGP.code-workspace
 /cfg.ini
 /Cookies
 /log
