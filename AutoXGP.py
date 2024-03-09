@@ -448,7 +448,8 @@ def getXGP(account:str):
     driver.get(url)
     input_pay_password = driver.find_element(By.ID, "payPassword_rsainput").send_keys(alipay_pay_password)
     agree = driver.find_element(By.ID, "J_submit").click()
-    time.sleep(1)
+    # 代扣开通成功
+    driver.find_element(By.XPATH, '//*[@id="container"]/div/div[1]/p[1]')
     lock.release()
 
     # TODO Alipay pay password encrypt
@@ -822,7 +823,7 @@ if __name__ == "__main__":
     cookie_file = open("alipayCookies.json", "r+")
     alipay_cookies = cookie_file.read()
     driver = edge(False)
-    driver.implicitly_wait(10.0)
+    driver.implicitly_wait(5.0)
     if alipay_cookies == "":
         driver.get("https://auth.alipay.com/login/index.htm?goto=https%3A%2F%2Fwww.alipay.com%2F")
         output("扫码以登录支付宝")
@@ -832,8 +833,8 @@ if __name__ == "__main__":
                 break
             else:
                 time.sleep(0.2)
+        driver.minimize_window()
         alipay_cookies = driver.get_cookies()
-        # driver.quit()
 
         save_cookie = config.getboolean("Alipay", "saveCookie")
         if save_cookie:
