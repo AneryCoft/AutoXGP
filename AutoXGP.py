@@ -381,7 +381,11 @@ def getXGP(account:str):
     buy_xgp = session.post(url=url, data=body, headers=headers, allow_redirects=False, verify=False)
 
     # 选择支付方式
-    cart_id = re.search(r'"cartId":"(.+?)"', buy_xgp.text).group(1)
+    cart_id = re.search(r'"cartId":"(.*?)"', buy_xgp.text).group(1)
+    if cart_id == "":
+        output("出现异常 请使用网络代理")
+        return
+
     params = {
         "type": "alipay_billing_agreement",
         "partner": "webblends",
