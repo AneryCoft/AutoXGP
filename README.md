@@ -27,6 +27,6 @@
 #### 注意：请使用[HMCL](https://github.com/HMCL-dev/HMCL)或[PCL](https://github.com/Hex-Dragon/PCL2)等第三方启动器登录完成后的XGP
 
 ## 反馈
-如果您在运行过程的遇到报错，请将控制台截图到[issue](https://github.com/AneryCoft/AutoXGP/issue)
+如果您在运行过程的遇到报错，请将控制台截图到[issues](https://github.com/AneryCoft/AutoXGP/issues)
 
 QQ群：[225705430](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=HvEcIqMdYh5VScESIiN_vVjv7wO1n6zD&authKey=VikOm9rA7rMpGDNaNfH6%2BVP2SJRwTgLvmOYViAa2l6z%2FlLUE%2F10L%2FO8iXO5XFvMb&noverify=0&group_code=225705430)
