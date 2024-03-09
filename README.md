@@ -24,6 +24,8 @@
 * 运行[AutoXGP.py](https://github.com/AneryCoft/AutoXGP/blob/main/AutoXGP.py)
 完成后的XGP将会写入[XGP.txt](https://github.com/AneryCoft/AutoXGP/blob/main/XGP.txt)
 
+#### 注意：请使用[HMCL](https://github.com/HMCL-dev/HMCL)或[PCL](https://github.com/Hex-Dragon/PCL2)等第三方启动器登录完成后的XGP
+
 ## 反馈
 如果您在运行过程的遇到报错，请将控制台截图到[issue](https://github.com/AneryCoft/AutoXGP/issue)
 
