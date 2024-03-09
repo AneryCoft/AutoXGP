@@ -271,71 +271,75 @@ def getXGP(account:str):
 
     # 创建Xbox档案
 
-    # 测试代号是否可用
-    sessionid = re.search(r'sid=(.+?)&',login_in.history[2].headers["Location"]).group(1)
-    url = f"https://sisu.xboxlive.com/proxy?sessionid={sessionid}"
-    headers["authorization"] = re.search(r'spt=(.+?)&',login_in.history[2].headers["Location"]).group(1)
-    xbox_prefix = config.get("Prefix", "xbox_prefix")
-    reservation_id = 1234567890
-    body = {
-        "GamertagReserve": {
-            "Gamertag": "",
-            "ReservationId": reservation_id,
-            "Duration": "1:00:00"
+    session_id_match = re.search(r'sid=(.+?)&',login_in.history[2].headers["Location"])
+    if session_id_match:
+        session_id = session_id_match.group(1)
+        url = f"https://sisu.xboxlive.com/proxy?sessionid={session_id}"
+        headers["authorization"] = re.search(r'spt=(.+?)&',login_in.history[2].headers["Location"]).group(1)
+        xbox_prefix = config.get("Prefix", "xbox_prefix")
+        reservation_id = 1234567890
+        body = {
+            "GamertagReserve": {
+                "Gamertag": "",
+                "ReservationId": reservation_id,
+                "Duration": "1:00:00"
+            }
         }
-    }
-    while True:
-        xbox_gamertag = xbox_prefix + random_str(15 - len(xbox_prefix))
-        body["GamertagReserve"]["Gamertag"] = xbox_gamertag
-        gamertag_test = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
-        if gamertag_test.ok:
-            break
+        # 测试代号是否可用
+        while True:
+            xbox_gamertag = xbox_prefix + random_str(15 - len(xbox_prefix))
+            body["GamertagReserve"]["Gamertag"] = xbox_gamertag
+            gamertag_test = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+            if gamertag_test.ok:
+                break
 
-    # 设置代号
-    body = {
-        "CreateAccountWithGamertag": {
-            "Gamertag": xbox_gamertag,
-            "ReservationId": reservation_id
+        # 设置代号
+        body = {
+            "CreateAccountWithGamertag": {
+                "Gamertag": xbox_gamertag,
+                "ReservationId": reservation_id
+            }
         }
-    }
-    set_gamertag = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
-    output(f"已设置Xbox玩家代号为:{xbox_gamertag}")
+        set_gamertag = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+        # current_gametag = set_gamertag.json["gamerTag"]
+        output(f"已设置Xbox玩家代号为:{xbox_gamertag}")
 
-    # 设置头像
-    body = {
-        "SetGamerpic": {
-            "GamerPic": "https://dlassets-ssl.xboxlive.com/public/content/ppl/gamerpics/00052-00000-md.png?w=320&h=320"
+        # 设置头像
+        body = {
+            "SetGamerpic": {
+                "GamerPic": "https://dlassets-ssl.xboxlive.com/public/content/ppl/gamerpics/00052-00000-md.png?w=320&h=320"
+            }
         }
-    }
-    set_gamerpic = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+        set_gamerpic = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
 
-    # 同意
-    """
-    url = "https://sisu.xboxlive.com/client/v32/default/view/consent.html?action=signup&flowType=new_user"
-    consent = session.get(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+        # 可选诊断数据
+        """
+        url = "https://sisu.xboxlive.com/client/v32/default/view/consent.html?action=signup&flowType=new_user"
+        consent = session.get(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
 
-    body = {
-        "CheckConsents": {}
-    }
-    check_consents = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
-    body = {
-        "SetConsents": {
-            "Consents": [
-                {
-                    "id": check_consents.json()["consents"][0]["id"],
-                    "values": [
-                        {
-                            "categoryName": "XboxDiagnosticsOptionalData",
-                            "value": "false",
-                            "valueDataType": "Boolean"
-                        }
-                    ]
-                }
-            ]
+        body = {
+            "CheckConsents": {}
         }
-    }
-    set_consents = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
-    """
+        check_consents = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+
+        body = {
+            "SetConsents": {
+                "Consents": [
+                    {
+                        "id": check_consents.json()["consents"][0]["id"],
+                        "values": [
+                            {
+                                "categoryName": "XboxDiagnosticsOptionalData",
+                                "value": "false",
+                                "valueDataType": "Boolean"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+        set_consents = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+        """
 
     # Xbox验证
 
