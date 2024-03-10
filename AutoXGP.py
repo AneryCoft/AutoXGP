@@ -216,7 +216,7 @@ def getXGP(account:str):
                 "pprid": pprid,
                 "uaid": uaid
             }
-            add_proofs = client.post(url=url, headers=headers, data=body, allow_redirects=False)
+            add_proofs = client.post(url=url, headers=headers, data=body)
 
             canary = re.search(r'name="canary" value="(.+?)"',add_proofs.text).group(1)
             body = {
@@ -461,12 +461,10 @@ def getXGP(account:str):
 
     # TODO Alipay pay password encrypt
     """ 
-    direct_alipay = client.get(
-        url=url, headers=headers, allow_redirects=False
-    )
+    direct_alipay = client.get(url=url, headers=headers)
 
     url = direct_alipay.headers["Location"]
-    alipay_html = client.get(url=url, headers=headers, allow_redirects=False)
+    alipay_html = client.get(url=url, headers=headers)
 
     url = "https://securitycore.alipay.com/securityAjaxValidate.json"
     alieditUid = re.search(r'name="alieditUid" value="(.+?)"',alipay_html.text).group(1)
