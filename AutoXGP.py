@@ -4,66 +4,275 @@ Github:https://github.com/AneryCoft
 2024.1.25
 """
 
-import time
-import random
-from selenium import webdriver
-from selenium.webdriver.edge.options import Options
-from selenium.webdriver.common.by import By
-import ctypes
-import configparser
-import requests
-import urllib3
 import re
-from urllib import parse
-import base64
-import hashlib
+import os
+import sys
+import time
 import uuid
 import json
+import base64
+import random
+import ctypes
+import string
+import urllib3
+import hashlib
+import logging
+import datetime
+import requests
 import threading
+import configparser
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.edge.options import Options
+from selenium.common.exceptions import WebDriverException
 
- 
-def output(message: str):
-    """
-    输出信息和时间
-    """
-    localTime = time.localtime()
-    print(f"[{localTime.tm_hour}:{localTime.tm_min}:{localTime.tm_sec}] {message}")
+def print_logo():
+    "打印logo"
+    print("""     _         _      __  ______ ____                                 _       
+    / \  _   _| |_ ___\ \/ / ___|  _ \ _ __ ___  __ _ _   _  ___  ___| |_ ___ 
+   / _ \| | | | __/ _ \\\\  / |  _| |_) | '__/ _ \/ _` | | | |/ _ \/ __| __/ __|
+  / ___ \ |_| | || (_) /  \ |_| |  __/| | |  __/ (_| | |_| |  __/\__ \ |_\__ \\
+ /_/   \_\__,_|\__\___/_/\_\____|_|   |_|  \___|\__, |\__,_|\___||___/\__|___/
+                                                   |_|
+""")
 
-def random_str(length: int) -> str:
-    """
-    生成随机字符串
-    """
-    base_Str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890"
-    random_str = ""
-    for i in range(length):
-        random_str += base_Str[random.randint(0, 61)]
-    return random_str
 
-def edge(headless:bool) -> webdriver.Edge:
-    """
-    使用webdriver创建Edge浏览器
-    """
-    options = Options()
-    options.binary_location = (
-        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+def del_empty_logs():
+    "删除空日志文件"
+    try:
+        for filename in os.listdir("log"):
+            filepath = os.path.join(f"log/{filename}")
+            if os.path.isfile(filepath) and os.path.getsize(filepath) == 0:
+                os.remove(filepath)
+    except:
+        pass
+
+
+def init():
+    "初始化"
+    ctypes.windll.kernel32.SetConsoleTitleW("Auto Xbox Game Pass") # 设置控制台标题
+    if not os.path.exists("log"):
+        os.mkdir("log")
+    if not os.path.exists("Accounts"):
+        os.mkdir("Accounts")
+    if not os.path.exists("Accounts/Accounts.txt"):
+        with open("Accounts/Accounts.txt", "w") as f:
+            pass
+    if not os.path.exists("Accounts/XGP.txt"):
+        with open("Accounts/XGP.txt", "w") as f:
+            pass
+    if not os.path.exists("Cookies"):
+        os.mkdir("Cookies")
+    if not os.path.exists("Cookies/AilpayCookies.json"):
+        with open("Cookies/AilpayCookies.json", "w") as f:
+            pass
+    
+    if (not os.path.exists("cfg.ini")) or os.path.getsize("cfg.ini") == 0:
+        cfg = configparser.ConfigParser()
+        cfg['Log'] = {'log_level': 'INFO',
+                      'stream_level': 'INFO'}
+        cfg['Thread'] = {'thread': '1'}
+        cfg['Proxy'] = {'enable_proxy': 'false',
+                        'host': '',
+                        'port': '',}
+        cfg['Alipay'] = {'pay_password': '',
+                            'save_cookies': 'false'}
+        cfg['Prefix'] = {'xbox_prefix': '',
+                            'ign_prefix': ''}
+        cfg['Skin'] = { 'skin_path': 'Misc/skin.png',
+                        'set_skin': 'false',
+                        'model': '0'}
+        with open('cfg.ini', 'w') as cfg_file:
+            cfg.write(cfg_file)
+        with open('cfg.ini', 'rb+') as cfg_file:
+            content = cfg_file.read()
+            cfg_file.seek(0)
+            cfg_file.truncate()
+            cfg_file.write(content[:-4])
+            cfg_file.write(" ; 0-经典 1-纤细".encode('utf-8'))
+    del_empty_logs()
+
+
+def init_logger(timestamp:str) -> logging.Logger:
+    "初始化日志记录器"
+    class MyFilter(logging.Filter):
+        def filter(self, record):
+            return record.name in ('__main__')
+    cfg = configparser.ConfigParser()
+    cfg.read('cfg.ini', encoding='utf-8')
+    log_format = '[%(levelname)s] [%(asctime)s] [%(threadName)s] %(message)s'
+    logging.basicConfig(
+        filename=f'log/log_{timestamp}.log',
+        level=logging.INFO,
+        format=log_format,
+        datefmt='%Y-%m-%d %H:%M:%S',
+        encoding='utf-8'
     )
+    logger = logging.getLogger(__name__)
+    try:
+        logger.setLevel(logging.getLevelName(cfg.get('Log', 'log_level').upper()))
+    except:
+        logger.setLevel(logging.INFO)
+    logger.addFilter(MyFilter())
+
+    console_handler = logging.StreamHandler()
+    try:
+        console_handler.setLevel(logging.getLevelName(cfg.get('Log', 'stream_level').upper()))
+    except:
+        console_handler.setLevel(logging.INFO)
+    stream_format = '[%(asctime)s] [%(threadName)s] %(message)s'
+    console_handler.setFormatter(logging.Formatter(stream_format, datefmt='%H:%M:%S'))
+    logger.addHandler(console_handler)
+    return logger
+
+
+def get_random_str(length: int) -> str:
+    "生成随机字符串"
+    characters = string.ascii_letters + string.digits
+    return ''.join(random.choices(characters, k=length))
+
+
+def edge(headless:bool = True) -> webdriver.Edge:
+    "创建Edge浏览器实例"
+    options = Options()
     if headless:
         options.add_argument("--headless")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
     options.add_argument("--inprivate")
     options.add_experimental_option("useAutomationExtension", False)
-    # 禁用调试信息
     options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
     return webdriver.Edge(options=options)
 
-def fix_base64_str(string:str) -> str:
+
+def fix_base64_str(str:str) -> str:
     """
-    修复Base64编码的字符串
+    修复Base64编码字符串长度错误问题
     避免 binascii.Error: Incorrect padding
     """
-    length = len(string)
+    length = len(str)
     if length % 4:
-        string += "=" * (4 - length % 4)
-    return string
+        str += "=" * (4 - length % 4)
+    return str
+
+
+def get_proxies():
+    "获取代理并检查代理可用性"
+    cfg = configparser.ConfigParser()
+    cfg.read("cfg.ini")
+    try:
+        if cfg.getboolean("Proxy","enable_proxy"):
+            host = cfg["Proxy"]["host"]
+            port = cfg["Proxy"]["port"]
+            proxies = {
+                "http": f"http://{host}:{port}",
+                "https": f"http://{host}:{port}"
+            }
+            # 检查代理可用性
+            response = requests.get("http://httpbin.org/ip")
+            if response.status_code == 200:
+                return proxies
+    except:
+        pass
+
+
+def get_pay_pwd() -> str:
+    "获取支付密码"
+    try:
+        pay_pwd = str(cfg.get("Alipay", "pay_password").strip())
+    except:
+        pay_pwd = ""
+    while True:
+        if len(pay_pwd) != 6 or (pay_pwd == "" or not pay_pwd.isdigit()):
+            pay_pwd = input("输入你的支付宝支付密码:")
+            os.system("cls")
+            if len(str(pay_pwd)) != 6:
+                print("键入有误! 支付密码必须是6位数字,请重新输入...")
+                time.sleep(2)
+                os.system("cls")
+                continue
+            else:
+                cfg.set("Alipay", "pay_password", pay_pwd)
+                cfg_file = open("cfg.ini", "w")
+                with open("cfg.ini", "w") as cfg_file:
+                    cfg.write(cfg_file)
+                logger.info("已在配置中保存支付密码")
+                break
+        else:
+            break
+    return pay_pwd
+
+
+def check_cookies_availability() -> bool:
+    "检查Alipay是否能通过Cookie正常登录"
+    try:
+        with open("Cookies/AilpayCookies.json", 'r') as file:
+            alipay_cookies = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return False
+    # 将JSON格式的Cookie列表转换为请求头部格式
+    cookie_header = '; '.join([f'{cookie["name"]}={cookie["value"]}' for cookie in alipay_cookies])
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
+        "Cookie": cookie_header
+    }
+
+    response = requests.get("https://www.alipay.com/", headers=headers)
+
+    if response.status_code == 200:
+        element = response.text.find("我已有支付宝账户")
+        if element != -1:
+            logger.warning("登录支付宝失败,请更新Cookie")
+            return False
+        else:
+            new_cookies = requests.utils.dict_from_cookiejar(response.cookies)
+            cfg = configparser.ConfigParser()
+            cfg.read("cfg.ini", encoding="utf-8")
+            try:
+                if cfg["Alipay"].getboolean("save_cookies"):
+                    with open("Cookies\AilpayCookies.json", 'w') as file:
+                        json.dump(new_cookies, file)
+            except:
+                pass
+            return True
+    else:
+        logger.error(f"LoginAlipayFailed: {response.status_code} Request failed")
+        return False
+
+
+def get_alipay_cookies():
+    "获取支付宝Cookies"
+    if not (os.path.exists("Cookies/AilpayCookies.json") and os.path.getsize("Cookies/AilpayCookies.json") == 0 and check_cookies_availability()):
+        driver = edge(False)
+        driver.implicitly_wait(10.0)
+        driver.get("https://auth.alipay.com/login/index.htm?goto=https%3A%2F%2Fwww.alipay.com%2F")
+        logger.info("扫码以登录支付宝")
+        # 判断是否已扫码
+        while True:
+            try:
+                if driver.current_url.startswith("https://www.alipay.com/"):
+                    break
+                else:
+                    time.sleep(0.5)
+            except WebDriverException as e:
+                #logger.critical(e)
+                logger.critical("浏览器可能被异常关闭,将结束程序...")
+                sys.exit()
+        alipay_cookies = driver.get_cookies()
+        logger.info("已获取支付宝Cookies")
+        try:
+            if cfg.getboolean("Alipay", "save_cookies"):
+                with open("Cookies/AlipayCookies.json", "w+") as cookie_file:
+                    cookie_file.write(json.dumps(alipay_cookies))
+                logger.info("已保存支付宝Cookies")
+        except:
+            pass
+        return alipay_cookies
+    else:
+        with open("Cookies/AlipayCookies.json", "r") as cookie_file:
+             alipay_cookies = json.loads(cookie_file.read())
+        return alipay_cookies
+
 
 def getXGP(account:str):
     # 用于计算用时
@@ -84,7 +293,7 @@ def getXGP(account:str):
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"
     client_id = "1f907974-e22b-4810-a9de-d9647380c97e"
     client_request_id = str(uuid.uuid1())
-    code_verifier = random_str(43).encode()
+    code_verifier = get_random_str(43).encode()
     code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier).digest()).rstrip(b"=").decode()
     state_data = ('{"id":"%s","meta":{"interactionType":"redirect"}}' % uuid.uuid1()).encode()
     state = base64.b64encode(state_data).decode() + "|https%3A%2F%2Fwww.xbox.com%2Fzh-HK%2Fxbox-game-pass%2Fpc-game-pass"
@@ -144,7 +353,7 @@ def getXGP(account:str):
     post_email = session.post(url=url, headers=headers, json=body, allow_redirects=False, verify=False)
 
     if post_email.json()["IfExistsResult"] == 1:
-        output(f"微软账户错误:{ms_email}")
+        logger.error(f"微软账户错误:{ms_email}")
         return
 
     # 发送密码
@@ -276,7 +485,7 @@ def getXGP(account:str):
         session_id = session_id_match.group(1)
         url = f"https://sisu.xboxlive.com/proxy?sessionid={session_id}"
         headers["authorization"] = re.search(r'spt=(.+?)&',login_in.history[2].headers["Location"]).group(1)
-        xbox_prefix = config.get("Prefix", "xbox_prefix")
+        xbox_prefix = cfg.get("Prefix", "xbox_prefix")
         reservation_id = 1234567890
         body = {
             "GamertagReserve": {
@@ -287,7 +496,7 @@ def getXGP(account:str):
         }
         # 测试代号是否可用
         while True:
-            xbox_gamertag = xbox_prefix + random_str(15 - len(xbox_prefix))
+            xbox_gamertag = xbox_prefix + get_random_str(15 - len(xbox_prefix))
             body["GamertagReserve"]["Gamertag"] = xbox_gamertag
             gamertag_test = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
             if gamertag_test.ok:
@@ -302,7 +511,7 @@ def getXGP(account:str):
         }
         set_gamertag = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
         # current_gametag = set_gamertag.json["gamerTag"]
-        output(f"已设置Xbox玩家代号为:{xbox_gamertag}")
+        logger.info(f"已设置Xbox玩家代号为:{xbox_gamertag}")
 
         # 设置头像
         body = {
@@ -383,7 +592,7 @@ def getXGP(account:str):
     # 选择支付方式
     cart_id = re.search(r'"cartId":"(.*?)"', buy_xgp.text).group(1)
     if cart_id == "":
-        output("出现异常 请使用网络代理")
+        logger.error("出现异常 请使用网络代理")
         return
 
     params = {
@@ -446,7 +655,7 @@ def getXGP(account:str):
     url = payment_instruments_ex.headers["location"]
     lock.acquire()
     driver.get(url)
-    input_pay_password = driver.find_element(By.ID, "payPassword_rsainput").send_keys(alipay_pay_password)
+    input_pay_password = driver.find_element(By.ID, "payPassword_rsainput").send_keys(pay_pwd)
     agree = driver.find_element(By.ID, "J_submit").click()
     # 代扣开通成功
     driver.find_element(By.XPATH, '//*[@id="container"]/div/div[1]/p[1]')
@@ -546,7 +755,7 @@ def getXGP(account:str):
 
     # 订阅
     url = "https://cart.production.store-web.dynamics.com/v1.0/Cart/PrepareCheckout?appId=BuyNow&perf=true&context=UpdateBillingInformation"
-    ms_cv = random_str(22)
+    ms_cv = get_random_str(22)
     headers["ms-cv"] = ms_cv + ".5"
     headers["x-authorization-muid"] = re.search(r'"alternativeMuid":"(.+?)"',buy_xgp.text).group(1)
     headers["x-ms-correlation-id"] = re.search(r'"correlationId":"(.+?)"',buy_xgp.text).group(1)
@@ -621,7 +830,7 @@ def getXGP(account:str):
     }
     buy_now = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
 
-    output("已订阅Xbox Game Pass")
+    logger.info("已订阅Xbox Game Pass")
 
     # 设置Minecraft档案
 
@@ -660,11 +869,11 @@ def getXGP(account:str):
     headers["authorization"] = authorization
     redeem = session.get(url=url,headers=headers,allow_redirects=False,verify=False)
 
-    minecraft_prefix = config.get("Prefix", "minecraft_prefix")
+    ign_prefix = cfg.get("Prefix", "ign_prefix")
 
     # 测试ID是否可用
     while True:
-        profile_name = minecraft_prefix + random_str(16 - len(minecraft_prefix))
+        profile_name = ign_prefix + get_random_str(16 - len(ign_prefix))
         url = f"https://api.minecraftservices.com/minecraft/profile/name/{profile_name}/available"
         name_available = session.get(url=url, headers=headers, allow_redirects=False, verify=False)
         status = name_available.json()["status"]
@@ -676,22 +885,22 @@ def getXGP(account:str):
     body = {"profileName": profile_name}
     set_profile_name = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
     if set_profile_name.ok:
-        output(f"已设置MinecraftID为:{profile_name}")
+        logger.info(f"已设置MinecraftID为:{profile_name}")
     elif set_profile_name.json()["details"]["status"] == "NOT_ENTITLED":
-        output(f"无法修改MinecraftID!")
+        logger.error(f"无法修改MinecraftID!")
     
     # 设置Minecraft皮肤
-    if config.getboolean("Skin","customSkin"): 
+    if cfg.getboolean("Skin","set_skin"): 
         url = "https://api.minecraftservices.com/minecraft/profile/skins"
-        model = config.getint("Skin","model")
+        model = cfg.getint("Skin","model")
         model_list = ["classic","slim"]
         body = {"variant": model_list[model]}
-        skin_path = config["Skin"]["skin"]
+        skin_path = cfg["Skin"]["skin"]
         skin_file = open(skin_path,"rb")
         skin = {"file":skin_file}
-        customSkin = session.post(url=url,headers=headers,data=body,files=skin,verify=False)
-        if customSkin.ok:
-            output("已设置Minecraft皮肤")
+        set_skin = session.post(url=url,headers=headers,data=body,files=skin,verify=False)
+        if set_skin.ok:
+            logger.info("已设置Minecraft皮肤")
 
     # 取消订阅
 
@@ -712,7 +921,7 @@ def getXGP(account:str):
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"
     client_id = "81feaced-5ddd-41e7-8bef-3e20a2689bb7"
     client_request_id = str(uuid.uuid1())
-    code_verifier = random_str(43).encode()
+    code_verifier = get_random_str(43).encode()
     code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier).digest()).rstrip(b"=").decode()
     state_data = ('{"id":"%s","meta":{"interactionType":"silent"}}' % uuid.uuid1()).encode()
     state = base64.b64encode(state_data).decode()
@@ -790,101 +999,56 @@ def getXGP(account:str):
     }
     cancel_service = session.put(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
 
-    output("已取消订阅并退款")
+    logger.info("已取消订阅并退款")
 
     lock.acquire()
     global XGP_file
     XGP_file.write(account + "\n")
     lock.release()
 
-    output("用时：%.2f秒" % (time.time() - start_time))
+    logger.info("用时：%.2f秒" % (time.time() - start_time))
+
 
 def assign_account(accounts:list[str]):
+    "为每个线程分配账号"
     while True:
         lock.acquire()
         if not accounts:
             lock.release()
             break
-        account = accounts.pop()
+        acc = accounts.pop()
         lock.release()
-        if account[0] != "#":
-            account = account.strip("\n")
-            getXGP(account)
+        if acc[0] != "#":
+            acc = acc.strip("\n")
+            getXGP(acc)
 
 
 if __name__ == "__main__":
-    # 设置控制台标题
-    ctypes.windll.kernel32.SetConsoleTitleW("Auto Xbox Game Pass")
-
-    config = configparser.ConfigParser()
-    config.read("config.ini")
-
-    # 获取支付宝登录Cookie
-    cookie_file = open("alipayCookies.json", "r+")
-    alipay_cookies = cookie_file.read()
-    driver = edge(False)
-    driver.implicitly_wait(5.0)
-    if alipay_cookies == "":
-        driver.get("https://auth.alipay.com/login/index.htm?goto=https%3A%2F%2Fwww.alipay.com%2F")
-        output("扫码以登录支付宝")
-        # 判断是否已扫码
-        while True:
-            if driver.current_url.startswith("https://www.alipay.com/"):
-                break
-            else:
-                time.sleep(0.2)
-        driver.minimize_window()
-        alipay_cookies = driver.get_cookies()
-
-        save_cookie = config.getboolean("Alipay", "saveCookie")
-        if save_cookie:
-            cookie_file.write(json.dumps(alipay_cookies))
-            output("已保存支付宝Cookies")
-    else:
-        driver.get("https://www.alipay.com/")
-        alipay_cookies = json.loads(alipay_cookies)
-        for cookie in alipay_cookies:
-            driver.add_cookie(cookie)
-    cookie_file.close()
-
-    # 获取支付宝支付密码
-    alipay_pay_password = config.getint("Alipay", "payPassword")
-    if alipay_pay_password == "":
-        alipay_pay_password = input("输入你的支付宝支付密码:")
-        config.set("Alipay", "payPassword", alipay_pay_password)
-        config_file = open("config.ini", "w")
-        config.write(config_file)
-        config_file.close()
-        output("已在配置中保存支付宝支付密码")
-
-    account_file = open("accounts.txt","r+")
-    accounts = account_file.readlines()
-    account_file.close()
-
-    XGP_file = open("XGP.txt","a")
-
-    enable_proxy = config.getboolean("Proxy","enableProxy")
-    if enable_proxy:
-        host = config["Proxy"]["host"]
-        port = config["Proxy"]["port"] 
-        proxies = {
-            "http": "http://" + host + ":" + port,
-            "https": "https://" + host + ":" + port
-        }
-    else:
-        proxies = None
-
+    os.system('cls')
+    init()
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+    cfg = configparser.ConfigParser()
+    cfg.read("cfg.ini")
+    logger = init_logger(timestamp)
     urllib3.disable_warnings()
 
-    thread_num = config.getint("Thread","thread")
+    pay_pwd = get_pay_pwd()
+    proxies = get_proxies()
+    alipay_cookies = get_alipay_cookies()
+    driver = edge()
+
+    with open("Accounts/Accounts.txt", "r+") as f:
+        accounts = f.readlines()
+
+    try:
+        thread_num = cfg.getint("Thread","thread")
+    except:
+        thread_num = 1
     threads:list[threading.Thread] = []
     lock = threading.Lock()
     for _ in range(thread_num):
-        thread = threading.Thread(target=assign_account,args=(accounts,))
+        thread = threading.Thread(target=assign_account, args=(accounts,) ,name = f"Tread-{str(_)}")
         threads.append(thread)
         thread.start()
     for thread in threads:
         thread.join()
-    
-    XGP_file.close()
-    driver.quit()
