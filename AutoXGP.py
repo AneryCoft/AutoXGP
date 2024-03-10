@@ -11,7 +11,7 @@ from selenium.webdriver.edge.options import Options
 from selenium.webdriver.common.by import By
 import ctypes
 import configparser
-import requests
+import httpx
 import urllib3
 import re
 from urllib import parse
@@ -73,12 +73,11 @@ def getXGP(account:str):
     ms_email = parts[0]
     ms_password = parts[1]
 
-    session = requests.session()
+    client = httpx.Client(http2=True, proxy=proxy, verify=False, timeout=None)
     """
     for cookie in alipay_cookies:
-        session.cookies.set(cookie["name"], cookie["value"], domain=cookie["domain"])
+        client.cookies.set(cookie["name"], cookie["value"], domain=cookie["domain"])
     """
-    session.proxies = proxies
     
     # OAuth2.0
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"
@@ -115,14 +114,14 @@ def getXGP(account:str):
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
         "accept-encoding": "gzip",
-        "accept-language": "zh-CN,zh;q=0.9",
+        "accept-language": "zh-CN,zh;q=0.9"
     }
-    oauth2 = session.get(url=url,params=params, headers=headers, verify=False)
+    oauth2 = client.get(url=url, params=params, headers=headers, follow_redirects=True)
 
     # 登录微软
 
     # 发送账户
-    url = "https://login.live.com/GetCredentialType.srf?"
+    url = "https://login.live.com/GetCredentialType.srf"
     uaid = oauth2.cookies["uaid"]
     flow_token = re.search(r'value="(.+?)"',oauth2.text).group(1)
     body = {
@@ -141,7 +140,7 @@ def getXGP(account:str):
         "isSignup": False,
         "flowToken": flow_token
     }
-    post_email = session.post(url=url, headers=headers, json=body, allow_redirects=False, verify=False)
+    post_email = client.post(url=url, headers=headers, json=body)
 
     if post_email.json()["IfExistsResult"] == 1:
         output(f"微软账户错误:{ms_email}")
@@ -179,7 +178,18 @@ def getXGP(account:str):
         "isRecoveryAttemptPost": "0",
         "i19": "060601"
     }
-    post_password = session.post(url=url, headers=headers, data=body, allow_redirects=False, verify=False)
+    post_password = client.post(url=url, headers=headers, data=body)
+
+    # 隐私声明
+    url_match = re.search(r'action="(.+?)"',post_password.text)
+    if url_match:
+        url = url_match.group(1)
+        if url.split("?")[0] == "https://privacynotice.account.microsoft.com/notice":
+            body = {
+                "correlation_id": re.search(r'id="correlation_id" value="(.+?)">',post_password.text).group(1),
+                "code": re.search(r'id="code" value="(.+?)">',post_password.text).group(1)
+            }
+            privacy_notice = client.post(url=url, data=body, headers=headers)
 
     # 取消保持登录状态
     opid = re.search(r"opid=(.+?)&", oauth2.text).group(1)
@@ -192,7 +202,7 @@ def getXGP(account:str):
         "PPFT": flow_token,
         "canary": ""
     }
-    keep_login = session.post(url=url, data=body, headers=headers, allow_redirects=False, verify=False)
+    keep_login = client.post(url=url, data=body, headers=headers)
     login_action = keep_login
 
     # 跳过保护账户
@@ -206,7 +216,7 @@ def getXGP(account:str):
                 "pprid": pprid,
                 "uaid": uaid
             }
-            add_proofs = session.post(url=url, headers=headers, data=body, allow_redirects=False, verify=False)
+            add_proofs = client.post(url=url, headers=headers, data=body, allow_redirects=False)
 
             canary = re.search(r'name="canary" value="(.+?)"',add_proofs.text).group(1)
             body = {
@@ -219,17 +229,14 @@ def getXGP(account:str):
                 "PhoneNumber": "",
                 "PhoneCountryISO": ""
             }
-            skip = session.post(url=url, data=body, headers=headers, allow_redirects=False, verify=False)
+            skip = client.post(url=url, data=body, headers=headers)
 
             # 跳过摆脱密码束缚
             url = skip.headers["Location"]
-            authenticator_cancel = session.post(url=url, headers=headers, allow_redirects=False, verify=False)
+            authenticator_cancel = client.post(url=url, headers=headers)
             login_action = authenticator_cancel
 
     # 登录Xbox
-
-    url = "https://www.xbox.com/zh-HK/auth/msa?action=loggedIn&locale_hint=zh-HK"
-    login_in = session.get(url=url, headers=headers, allow_redirects=False, verify=False)
 
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
     headers["origin"] = "https://www.xbox.com"
@@ -244,13 +251,13 @@ def getXGP(account:str):
     "x-ms-lib-capability": "retry-after, h429",
     "x-client-current-telemetry": "",
     "x-client-last-telemetry": "",
-    "code_verifier": code_verifier,
+    "code_verifier": code_verifier.decode(),
     "grant_type": "authorization_code",
     "client_info": "1",
     "client-request-id": client_request_id,
     "X-AnchorMailbox": ""
     }
-    oauth2_token = session.post(url=url, data=body, headers=headers, allow_redirects=False, verify=False)
+    oauth2_token = client.post(url=url, data=body, headers=headers)
 
     # 登录Xbox
     url = "https://sisu.xboxlive.com/connect/XboxLive"
@@ -267,7 +274,7 @@ def getXGP(account:str):
         "cv": "",
         "state": '{"ru":"https://www.xbox.com/zh-HK/xbox-game-pass/pc-game-pass","msaId":%s,"sid":"RETAIL"}' % msa_id
     }
-    login_in = session.get(url=url,params=params, headers=headers, verify=False)
+    login_in = client.get(url=url, params=params, headers=headers, follow_redirects=True)
 
     # 创建Xbox档案
 
@@ -289,8 +296,8 @@ def getXGP(account:str):
         while True:
             xbox_gamertag = xbox_prefix + random_str(15 - len(xbox_prefix))
             body["GamertagReserve"]["Gamertag"] = xbox_gamertag
-            gamertag_test = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
-            if gamertag_test.ok:
+            gamertag_test = client.post(url=url, json=body, headers=headers)
+            if gamertag_test.is_success:
                 break
 
         # 设置代号
@@ -300,7 +307,7 @@ def getXGP(account:str):
                 "ReservationId": reservation_id
             }
         }
-        set_gamertag = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+        set_gamertag = client.post(url=url, json=body, headers=headers)
         # current_gametag = set_gamertag.json["gamerTag"]
         output(f"已设置Xbox玩家代号为:{xbox_gamertag}")
 
@@ -310,17 +317,17 @@ def getXGP(account:str):
                 "GamerPic": "https://dlassets-ssl.xboxlive.com/public/content/ppl/gamerpics/00052-00000-md.png?w=320&h=320"
             }
         }
-        set_gamerpic = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+        set_gamerpic = client.post(url=url, json=body, headers=headers)
 
         # 可选诊断数据
         """
         url = "https://sisu.xboxlive.com/client/v32/default/view/consent.html?action=signup&flowType=new_user"
-        consent = session.get(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+        consent = client.get(url=url, json=body, headers=headers)
 
         body = {
             "CheckConsents": {}
         }
-        check_consents = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+        check_consents = client.post(url=url, json=body, headers=headers)
 
         body = {
             "SetConsents": {
@@ -338,7 +345,7 @@ def getXGP(account:str):
                 ]
             }
         }
-        set_consents = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+        set_consents = client.post(url=url, json=body, headers=headers)
         """
 
     # Xbox验证
@@ -354,7 +361,7 @@ def getXGP(account:str):
         "RelyingParty": "http://auth.xboxlive.com",
         "TokenType": "JWT"
     }
-    xbox_auth_1 = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+    xbox_auth_1 = client.post(url=url, json=body, headers=headers)
 
     url = "https://xsts.auth.xboxlive.com/xsts/authorize"
     user_token = xbox_auth_1.json()["Token"]
@@ -366,7 +373,7 @@ def getXGP(account:str):
         "RelyingParty": "http://mp.microsoft.com/",
         "TokenType": "JWT"
     }
-    xbox_auth_2 = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+    xbox_auth_2 = client.post(url=url, json=body, headers=headers)
 
     # 订阅XGP
 
@@ -378,7 +385,7 @@ def getXGP(account:str):
         "data": '{"products":[{"productId":"CFQ7TTC0KGQ8","skuId":"0002","availabilityId":"CFQ7TTC0KF41"}],"campaignId":"xboxcomct","callerApplicationId":"XboxCom","expId":["EX:sc_xboxgamepad","EX:sc_xboxspinner","EX:sc_xboxclosebutton","EX:sc_xboxuiexp","EX:sc_disabledefaultstyles","EX:sc_gamertaggifting"],"flights":["sc_xboxgamepad","sc_xboxspinner","sc_xboxclosebutton","sc_xboxuiexp","sc_disabledefaultstyles","sc_gamertaggifting"],"clientType":"XboxCom","data":{"usePurchaseSdk":true},"layout":"Modal","cssOverride":"XboxCom2NewUI","theme":"light","scenario":"","suppressGiftThankYouPage":false}',
         "auth": '{"XToken":"%s"}' % XToken
     }
-    buy_xgp = session.post(url=url, data=body, headers=headers, allow_redirects=False, verify=False)
+    buy_xgp = client.post(url=url, data=body, headers=headers)
 
     # 选择支付方式
     cart_id = re.search(r'"cartId":"(.*?)"', buy_xgp.text).group(1)
@@ -400,7 +407,7 @@ def getXGP(account:str):
     headers["origin"] = "https://www.microsoft.com"
     headers["referer"] = "https://www.microsoft.com/"
     headers["authorization"] = XToken
-    payment_method_descriptions = session.get(url=url, params=params, headers=headers, allow_redirects=False, verify=False)
+    payment_method_descriptions = client.get(url=url, params=params, headers=headers)
 
     # 确认支付
     url = "https://paymentinstruments.mp.microsoft.com/v6.0/users/me/paymentInstrumentsEx?country=hk&language=zh-CHT&partner=webblends&completePrerequisites=True"
@@ -420,7 +427,7 @@ def getXGP(account:str):
         },
         "sessionId": session_id
     }
-    payment_instruments_ex = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+    payment_instruments_ex = client.post(url=url, json=body, headers=headers)
 
     # 发送支付宝支付密码签约
 
@@ -441,7 +448,7 @@ def getXGP(account:str):
         "ru": f"https://www.microsoft.com/zh-HK/store/rds/v2/GeneralAddPISuccess?picvRequired=False&pendingOn=Notification&type=alipay_billing_agreement&family=ewallet&id={payment_instrument_id}",
         "rx": "https://www.microsoft.com/zh-HK/store/rds/v2/GeneralAddPIFailure"
     }
-    payment_instruments_ex = session.get(url=url, params=params, headers=headers, allow_redirects=False, verify=False)
+    payment_instruments_ex = client.get(url=url, params=params, headers=headers)
 
     url = payment_instruments_ex.headers["location"]
     lock.acquire()
@@ -454,12 +461,12 @@ def getXGP(account:str):
 
     # TODO Alipay pay password encrypt
     """ 
-    direct_alipay = session.get(
-        url=url, headers=headers, allow_redirects=False, verify=False
+    direct_alipay = client.get(
+        url=url, headers=headers, allow_redirects=False
     )
 
     url = direct_alipay.headers["Location"]
-    alipay_html = session.get(url=url, headers=headers, allow_redirects=False, verify=False)
+    alipay_html = client.get(url=url, headers=headers, allow_redirects=False)
 
     url = "https://securitycore.alipay.com/securityAjaxValidate.json"
     alieditUid = re.search(r'name="alieditUid" value="(.+?)"',alipay_html.text).group(1)
@@ -486,7 +493,7 @@ def getXGP(account:str):
         "securityId": securityId,
         "orderId": "null"
     }
-    post_pay_password = session.get(url=url, params=params, headers=headers, allow_redirects=False, verify=False)
+    post_pay_password = client.get(url=url, params=params, headers=headers)
 
     url = "https://mdeduct.alipay.com/customer/customerAgreementSignConfirm.htm"
     headers["origin"] = "https://mdeduct.alipay.com"
@@ -519,17 +526,17 @@ def getXGP(account:str):
         "security_activeX_enabled": "false",
         "J_aliedit_net_info": ""
     }
-    sign_confirm = session.post(url=url, data=body, headers=headers, allow_redirects=False, verify=False)
+    sign_confirm = client.post(url=url, data=body, headers=headers)
     """
 
     """
     url = sign_confirm.headers["Location"]
-    agreement_operation_result = session.get(url=url, headers=headers, allow_redirects=False, verify=False)
+    agreement_operation_result = client.get(url=url, headers=headers)
     """
 
     # 确认使用支付宝订阅
     url = f"https://paymentinstruments.mp.microsoft.com/v6.0/users/me/paymentInstrumentsEx/{payment_instrument_id}?language=zh-CHT&partner=webblends&country=hk&completePrerequisites=True"
-    add_alipay = session.get(url=url, headers=headers, allow_redirects=False, verify=False)
+    add_alipay = client.get(url=url, headers=headers)
 
     # 添加地址信息
     # url = "https://jcmsfd.account.microsoft.com/JarvisCM/me/addresses"
@@ -542,7 +549,7 @@ def getXGP(account:str):
         "city": "a",
         "country": "hk"
     }
-    addresses = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+    addresses = client.post(url=url, json=body, headers=headers)
 
     # 订阅
     url = "https://cart.production.store-web.dynamics.com/v1.0/Cart/PrepareCheckout?appId=BuyNow&perf=true&context=UpdateBillingInformation"
@@ -572,7 +579,7 @@ def getXGP(account:str):
         "riskSessionId": risk_id,
         "testScenarios": "None"
     }
-    prepare_checkout = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+    prepare_checkout = client.post(url=url, json=body, headers=headers)
 
     url = "https://paymentinstruments.mp.microsoft.com/v6.0/users/me/PaymentSessionDescriptions"
     piid = payment_instrument_id
@@ -582,7 +589,7 @@ def getXGP(account:str):
         "paymentSessionData" : '{"piid":"%s","language":"zh-HK","partner":"webblends","piCid":"%s","amount":29,"currency":"HKD","country":"HK","hasPreOrder":"false","challengeScenario":"RecurringTransaction","challengeWindowSize":"03","purchaseOrderId":"%s"}' % (piid,piCid,purchaseOrderId),
         "operation": "Add"
     }
-    payment_session_descriptions = session.get(url=url, params=params, headers=headers, allow_redirects=False, verify=False)
+    payment_session_descriptions = client.get(url=url, params=params, headers=headers)
 
     url = f"https://cart.production.store-web.dynamics.com/v1.0/Cart/purchase?appId=BuyNow"
     headers["ms-cv"] = ms_cv + ".6"
@@ -619,7 +626,7 @@ def getXGP(account:str):
         "flights": [],
         "itemsToAdd": {}
     }
-    buy_now = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+    buy_now = client.post(url=url, json=body, headers=headers)
 
     output("已订阅Xbox Game Pass")
 
@@ -628,7 +635,7 @@ def getXGP(account:str):
     # 登录微软账户
     """
     url = "https://www.minecraft.net/msaprofilejs/6eff6391c7c99228bb68_03012024_0244/11.chunk.c68d8eb533ea60bdfbc5.js"
-    get_login_params = session.get(url=url, headers=headers, allow_redirects=False, verify=False)
+    get_login_params = session.get(url=url, headers=headers, allow_redirects=False)
     """
     # cobrandId = re.search(r'sisuCobrandId:"(.+?)"', get_login_params.text).group(1)
     # tid = re.search(r'titleId:"(.+?)"', get_login_params.text).group(1)
@@ -642,7 +649,7 @@ def getXGP(account:str):
     headers.pop("x-ms-vector-id")
     headers["referer"] = "https://www.minecraft.net/"
     headers["origin"] = "https://www.minecraft.net"
-    login_minecraft = session.get(url=url, headers=headers, verify=False)
+    login_minecraft = client.get(url=url, headers=headers, follow_redirects=True)
 
     url = "https://api.minecraftservices.com/authentication/login_with_xbox"
     access_token_base64 = login_minecraft.history[2].headers["location"].split("#")[1].strip("state=login&accessToken=")
@@ -652,13 +659,13 @@ def getXGP(account:str):
         "ensureLegacyEnabled": True,
         "identityToken": identityToken
     }
-    login_with_xbox = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+    login_with_xbox = client.post(url=url, json=body, headers=headers)
 
     request_id = str(uuid.uuid1())
     url = f"https://api.minecraftservices.com/entitlements/license?requestId={request_id}"
     authorization = "Bearer " + login_with_xbox.json()["access_token"]
     headers["authorization"] = authorization
-    redeem = session.get(url=url,headers=headers,allow_redirects=False,verify=False)
+    redeem = client.get(url=url, headers=headers)
 
     minecraft_prefix = config.get("Prefix", "minecraft_prefix")
 
@@ -666,7 +673,7 @@ def getXGP(account:str):
     while True:
         profile_name = minecraft_prefix + random_str(16 - len(minecraft_prefix))
         url = f"https://api.minecraftservices.com/minecraft/profile/name/{profile_name}/available"
-        name_available = session.get(url=url, headers=headers, allow_redirects=False, verify=False)
+        name_available = client.get(url=url, headers=headers)
         status = name_available.json()["status"]
         if status == "AVAILABLE":
             break
@@ -674,8 +681,8 @@ def getXGP(account:str):
     # 设置MinecraftID
     url = "https://api.minecraftservices.com/minecraft/profile"
     body = {"profileName": profile_name}
-    set_profile_name = session.post(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
-    if set_profile_name.ok:
+    set_profile_name = client.post(url=url, json=body, headers=headers)
+    if set_profile_name.is_success:
         output(f"已设置MinecraftID为:{profile_name}")
     elif set_profile_name.json()["details"]["status"] == "NOT_ENTITLED":
         output(f"无法修改MinecraftID!")
@@ -689,15 +696,15 @@ def getXGP(account:str):
         skin_path = config["Skin"]["skin"]
         skin_file = open(skin_path,"rb")
         skin = {"file":skin_file}
-        customSkin = session.post(url=url,headers=headers,data=body,files=skin,verify=False)
-        if customSkin.ok:
+        customSkin = client.post(url=url, headers=headers, data=body, files=skin)
+        if customSkin.is_success:
             output("已设置Minecraft皮肤")
 
     # 取消订阅
 
     url = "https://account.microsoft.com/services/pcgamepass/cancel?fref=billing-cancel"
     headers.pop("authorization")
-    billing_cancel = session.get(url=url, headers=headers, verify=False)
+    billing_cancel = client.get(url=url, headers=headers, follow_redirects=True)
 
     # 登录微软账户
     url = "https://account.microsoft.com/auth/complete-signin?ru=https%3A%2F%2Faccount.microsoft.com%2Fservices%2Fpcgamepass%2Fcancel%3Ffref%3Dbilling-cancel&wa=wsignin1.0"
@@ -707,7 +714,7 @@ def getXGP(account:str):
         "ANON": re.search(r'id="ANON" value="(.+?)">', billing_cancel.text).group(1),
         "t": re.search(r'id="t" value="(.+?)">', billing_cancel.text).group(1)
     }
-    login_ms = session.post(url=url, data=body, headers=headers, verify=False)
+    login_ms = client.post(url=url, data=body, headers=headers, follow_redirects=True)
 
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"
     client_id = "81feaced-5ddd-41e7-8bef-3e20a2689bb7"
@@ -735,7 +742,7 @@ def getXGP(account:str):
         "state": state
     }
     headers["referer"] = "https://account.microsoft.com/"
-    oauth2 = session.get(url=url, params=params, headers=headers, verify=False)
+    oauth2 = client.get(url=url, params=params, headers=headers, follow_redirects=True)
 
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
     headers["origin"] = "https://account.microsoft.com"
@@ -752,22 +759,22 @@ def getXGP(account:str):
         "x-ms-lib-capability": "retry-after, h429",
         "x-client-current-telemetry": "",
         "x-client-last-telemetry": "",
-        "code_verifier": code_verifier,
+        "code_verifier": code_verifier.decode(),
         "grant_type": "authorization_code",
         "client_info": "1",
         "client-request-id": client_request_id,
         "X-AnchorMailbox": ""
     }
-    oauth2_token = session.post(url=url, data=body, headers=headers, allow_redirects=False, verify=False)
+    oauth2_token = client.post(url=url, data=body, headers=headers)
 
     # 取消订阅
     url = "https://account.microsoft.com/services/pcgamepass/cancel?fref=billing-cancel&refd=account.microsoft.com"
-    cancel_service_page = session.get(url=url, headers=headers, allow_redirects=False, verify=False)
+    cancel_service_page = client.get(url=url, headers=headers)
 
     url = "https://account.microsoft.com/services/api/cancelservice"
     verification_token = re.search(r'name="__RequestVerificationToken" type="hidden" value="(.+?)"',cancel_service_page.text).group(1)
     headers["__requestverificationtoken"] = verification_token
-    headers["ms-cv"] = session.cookies["AMC-MS-CV"]
+    headers["ms-cv"] = client.cookies["AMC-MS-CV"]
     headers["referer"] = "https://account.microsoft.com/services/pcgamepass/cancel?fref=billing-cancel&refd=account.microsoft.com"
     headers["x-edge-shopping-flag"]= "0"
     headers["x-requested-with"]= "XMLHttpRequest"
@@ -775,7 +782,7 @@ def getXGP(account:str):
     match_serviceId = re.search(r'"active":\[{"id":"(.+?)"',cancel_service_page.text)
     if not match_serviceId:
         url = "https://account.microsoft.com/services/api/subscriptions-and-alerts?excludeWindowsStoreInstallOptions=false&excludeLegacySubscriptions=false"
-        subscriptions_and_alerts = session.get(url=url, headers=headers, allow_redirects=False, verify=False)
+        subscriptions_and_alerts = client.get(url=url, headers=headers)
         serviceId = re.search(r'"id":"(.+?)"',subscriptions_and_alerts.text).group(1)
     else:
         serviceId = match_serviceId.group(1)
@@ -788,7 +795,7 @@ def getXGP(account:str):
         "locale":"zh-CN",
         "market":"HK"
     }
-    cancel_service = session.put(url=url, json=body, headers=headers, allow_redirects=False, verify=False)
+    cancel_service = client.put(url=url, json=body, headers=headers)
 
     output("已取消订阅并退款")
 
@@ -866,13 +873,10 @@ if __name__ == "__main__":
     enable_proxy = config.getboolean("Proxy","enableProxy")
     if enable_proxy:
         host = config["Proxy"]["host"]
-        port = config["Proxy"]["port"] 
-        proxies = {
-            "http": "http://" + host + ":" + port,
-            "https": "https://" + host + ":" + port
-        }
+        port = config["Proxy"]["port"]
+        proxy = "http://" + host + ":" + port
     else:
-        proxies = None
+        proxy = None
 
     urllib3.disable_warnings()
 
