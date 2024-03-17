@@ -147,7 +147,8 @@ def getXGP(account:str):
         return
 
     # 发送密码
-    url = f"https://login.live.com/ppsecure/post.srf?uaid={uaid}"
+    opid = re.search(r"opid=(.+?)&", oauth2.text).group(1)
+    url = f"https://login.live.com/ppsecure/post.srf?opid={opid}&uaid={uaid}"
     body = {
         "i13": "0",
         "login": ms_email,
@@ -181,6 +182,7 @@ def getXGP(account:str):
     post_password = client.post(url=url, headers=headers, data=body)
 
     # 隐私声明
+    """
     url_match = re.search(r'action="(.+?)"',post_password.text)
     if url_match:
         url = url_match.group(1)
@@ -190,9 +192,10 @@ def getXGP(account:str):
                 "code": re.search(r'id="code" value="(.+?)">',post_password.text).group(1)
             }
             privacy_notice = client.post(url=url, data=body, headers=headers)
+    """
 
     # 取消保持登录状态
-    opid = re.search(r"opid=(.+?)&", oauth2.text).group(1)
+    
     url = f"https://login.live.com/ppsecure/post.srf?nopa=2&uaid={uaid}&opid={opid}&route=C107_SN1"
     body = {
         "LoginOptions": "3",
@@ -237,7 +240,7 @@ def getXGP(account:str):
             login_action = authenticator_cancel
 
     # 登录Xbox
-
+    
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
     headers["origin"] = "https://www.xbox.com"
     code = re.search(r'code=(.+?)&',login_action.headers["Location"]).group(1)
@@ -259,7 +262,6 @@ def getXGP(account:str):
     }
     oauth2_token = client.post(url=url, data=body, headers=headers)
 
-    # 登录Xbox
     url = "https://sisu.xboxlive.com/connect/XboxLive"
     # token_decode = jwt.decode(oauth2_token.json["id_token"],algorithms=["RS256"],verify=False)
     tokrn_data = fix_base64_str(str(oauth2_token.json()["id_token"]).split(".")[1])
