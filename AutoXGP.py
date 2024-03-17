@@ -30,14 +30,9 @@ def output(message: str):
     print(f"[{localTime.tm_hour}:{localTime.tm_min}:{localTime.tm_sec}] {message}")
 
 def random_str(length: int) -> str:
-    """
-    生成随机字符串
-    """
-    base_Str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890"
-    random_str = ""
-    for i in range(length):
-        random_str += base_Str[random.randint(0, 61)]
-    return random_str
+    "生成随机字符串"
+    characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890"
+    return ''.join(random.choices(characters, k=length))
 
 def edge(headless:bool) -> webdriver.Edge:
     """
