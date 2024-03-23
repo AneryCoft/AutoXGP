@@ -283,7 +283,7 @@ def getXGP(account:str):
     ms_email = parts[0]
     ms_password = parts[1]
 
-    client = httpx.Client(http2=True, proxy=proxy, verify=False, timeout=None)
+    client = httpx.Client(http2=True, proxies=proxy, verify=False, timeout=None)
     """
     for cookie in alipay_cookies:
         client.cookies.set(cookie["name"], cookie["value"], domain=cookie["domain"])
