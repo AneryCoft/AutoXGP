@@ -64,7 +64,7 @@ def getXGP(account:str):
     # 用于计算用时
     start_time = time.time()
 
-    parts = account.split("----")
+    parts = account.split(split_symbol)
     ms_email = parts[0]
     ms_password = parts[1]
 
@@ -809,12 +809,11 @@ def assign_account(accounts:list[str]):
             break
         account = accounts.pop()
         lock.release()
-        if account[0] != "#":
-            account = account.strip("\n")
-            try:
-                getXGP(account)
-            except Exception as e:
-                output(e)
+        account = account.strip("\n")
+        try:
+            getXGP(account)
+        except Exception as e:
+            output(e)
 
 
 if __name__ == "__main__":
@@ -865,6 +864,8 @@ if __name__ == "__main__":
     account_file = open("accounts.txt","r+")
     accounts = account_file.readlines()
     account_file.close()
+
+    split_symbol = config.get("Account","splitSymbol")
 
     XGP_file = open("XGP.txt","a")
 

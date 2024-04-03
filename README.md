@@ -6,20 +6,20 @@
 ## 使用
 * 在[config.ini](https://github.com/AneryCoft/AutoXGP/blob/main/config.ini)中完成对程序的设置
 
-如果订阅次数太多可能会被风控，这时候可能需要设置Proxy
+如果订阅次数太多可能会被风控，这时候可能需要设置`Proxy`
 
 在设置多线程时请注意支付宝账户余额，每次订阅XGP价格为29港元
 
-如果需要自定义Minecraft皮肤，请设置Skin
+如果需要自定义Minecraft皮肤，请设置`Skin`
 
-#### 注意：必须要对Alipay-payPassword进行配置
+#### 注意：必须要对`Alipay-payPassword`进行配置
 
 * 在[account.txt](https://github.com/AneryCoft/AutoXGP/blob/main/account.txt)中写入账户
 
 
 如果您没有微软账户，请先[注册](https://signup.live.com/signup)
 
-#### 注意：账户的格式为 邮箱----密码 两个账户之间要换行
+#### 注意：默认邮箱密码之间的分隔符为`----`,可以在`Account`自定义，两个账户之间要换行
 
 * 运行[AutoXGP.py](https://github.com/AneryCoft/AutoXGP/blob/main/AutoXGP.py)
 完成后的XGP将会写入[XGP.txt](https://github.com/AneryCoft/AutoXGP/blob/main/XGP.txt)
