@@ -20,6 +20,7 @@ import hashlib
 import uuid
 import json
 import threading
+from typing import List
 
  
 def output(message: str):
@@ -533,6 +534,20 @@ def getXGP(account:str):
     url = f"https://paymentinstruments.mp.microsoft.com/v6.0/users/me/paymentInstrumentsEx/{payment_instrument_id}?language=zh-CHT&partner=webblends&country=hk&completePrerequisites=True"
     add_alipay = client.get(url=url, headers=headers)
 
+    # setname
+    url = "https://paymentinstruments.mp.microsoft.com/v6.0/users/me/profiles"
+    body = {
+	"profileType":"consumerprerequisites",
+	"profileCountry":"hk",
+	"profileOperation":"add",
+	"type":"consumer",
+	"first_name":"fix",
+	"last_name":"fix",
+	"email_address":ms_email,
+	"culture":"EN"
+    }
+    setname = client.post(url=url, json=body, headers=headers)
+
     # 添加地址信息
     # url = "https://jcmsfd.account.microsoft.com/JarvisCM/me/addresses"
     url = "https://paymentinstruments.mp.microsoft.com/v6.0/users/me/addresses"
@@ -801,7 +816,7 @@ def getXGP(account:str):
 
     output("用时：%.2f秒" % (time.time() - start_time))
 
-def assign_account(accounts:list[str]):
+def assign_account(accounts:List[str]):
     while True:
         lock.acquire()
         if not accounts:
@@ -880,7 +895,7 @@ if __name__ == "__main__":
     urllib3.disable_warnings()
 
     thread_num = config.getint("Thread","thread")
-    threads:list[threading.Thread] = []
+    threads:List[threading.Thread] = []
     lock = threading.Lock()
     for _ in range(thread_num):
         thread = threading.Thread(target=assign_account,args=(accounts,))
