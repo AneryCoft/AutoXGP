@@ -811,7 +811,10 @@ def assign_account(accounts:list[str]):
         lock.release()
         if account[0] != "#":
             account = account.strip("\n")
-            getXGP(account)
+            try:
+                getXGP(account)
+            except Exception as e:
+                output(e)
 
 
 if __name__ == "__main__":
