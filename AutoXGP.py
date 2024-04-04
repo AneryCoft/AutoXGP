@@ -534,19 +534,19 @@ def getXGP(account:str):
     url = f"https://paymentinstruments.mp.microsoft.com/v6.0/users/me/paymentInstrumentsEx/{payment_instrument_id}?language=zh-CHT&partner=webblends&country=hk&completePrerequisites=True"
     add_alipay = client.get(url=url, headers=headers)
 
-    # setname
+    # 设置姓名
     url = "https://paymentinstruments.mp.microsoft.com/v6.0/users/me/profiles"
     body = {
-	"profileType":"consumerprerequisites",
-	"profileCountry":"hk",
-	"profileOperation":"add",
-	"type":"consumer",
-	"first_name":"fix",
-	"last_name":"fix",
-	"email_address":ms_email,
-	"culture":"EN"
+        "profileType": "consumerprerequisites",
+        "profileCountry": "hk",
+        "profileOperation": "add",
+        "type": "consumer",
+        "first_name": "Coft",
+        "last_name": "Anery",
+        "email_address": ms_email,
+        "culture": "EN"
     }
-    setname = client.post(url=url, json=body, headers=headers)
+    set_name = client.post(url=url, json=body, headers=headers)
 
     # 添加地址信息
     # url = "https://jcmsfd.account.microsoft.com/JarvisCM/me/addresses"
@@ -891,8 +891,6 @@ if __name__ == "__main__":
         proxy = "http://" + host + ":" + port
     else:
         proxy = None
-
-    urllib3.disable_warnings()
 
     thread_num = config.getint("Thread","thread")
     threads:List[threading.Thread] = []
