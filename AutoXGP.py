@@ -664,10 +664,15 @@ def getXGP(account:str):
     url = "https://api.minecraftservices.com/authentication/login_with_xbox"
     access_token_base64 = login_minecraft.history[2].headers["location"].split("#")[1].strip("state=login&accessToken=")
     access_token = json.loads(base64.b64decode(fix_base64_str(access_token_base64)))
-    identityToken = "XBL3.0 x=" + access_token[1]["Item2"]["DisplayClaims"]["xui"][0]["uhs"] + ";" + access_token[1]["Item2"]["Token"]
+    uhs,token = "",""
+    for item in access_token:
+        if item["Item1"] == "rp://api.minecraftservices.com/":
+            uhs = item["Item2"]["DisplayClaims"]["xui"][0]["uhs"]
+            token = item["Item2"]["Token"]
+    identity_token = "XBL3.0 x=" + uhs + ";" + token
     body = {
         "ensureLegacyEnabled": True,
-        "identityToken": identityToken
+        "identityToken": identity_token
     }
     login_with_xbox = client.post(url=url, json=body, headers=headers)
 
