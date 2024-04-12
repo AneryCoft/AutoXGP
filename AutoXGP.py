@@ -205,9 +205,28 @@ def getXGP(account:str):
             privacy_notice = client.post(url=url, data=body, headers=headers)
     """
 
-    # 取消保持登录状态
+    # 跳过登录保护
+    # 这个界面的出现不固定
+    add_proofs = do_submit(post_password.text,client,headers)
+
+    skip_prove_body = {
+        "iProofOptions": "Email",
+        "DisplayPhoneCountryISO": "CN",
+        "DisplayPhoneNumber": "",
+        "EmailAddress": "",
+        "canary": "",
+        "action": "Skip",
+        "PhoneNumber": "",
+        "PhoneCountryISO": ""
+    }
+
+    if add_proofs:
+        canary = re.search(r'name="canary" value="(.+?)"',add_proofs.text).group(1)
+        skip_prove_body["canary"] = canary
+        skip_add_proof = client.post(url=url, data=skip_prove_body, headers=headers,follow_redirects=True)
     
-    url = f"https://login.live.com/ppsecure/post.srf?nopa=2&uaid={uaid}&opid={opid}&route=C107_SN1"
+    # 取消保持登录状态
+    url = f"https://login.live.com/ppsecure/post.srf?nopa=2&uaid={uaid}&opid={opid}"
     body = {
         "LoginOptions": "3",
         "type": "28",
@@ -217,44 +236,20 @@ def getXGP(account:str):
         "canary": ""
     }
     keep_login = client.post(url=url, data=body, headers=headers)
-    login_action = keep_login
+    params_respond = keep_login
 
-    # 跳过保护账户
-    url_match = re.search(r'action="(.+?)"', keep_login.text)
-    if url_match:
-        url = url_match.group(1)
-        if url.split("?")[0] == "https://account.live.com/proofs/Add":
-            pprid = re.search(r'id="pprid" value="(.+?)"',keep_login.text).group(1)
-            body = {
-                "ipt": re.search(r'id="ipt" value="(.+?)"',keep_login.text).group(1),
-                "pprid": pprid,
-                "uaid": uaid
-            }
-            add_proofs = client.post(url=url, headers=headers, data=body)
-
-            canary = re.search(r'name="canary" value="(.+?)"',add_proofs.text).group(1)
-            body = {
-                "iProofOptions": "Email",
-                "DisplayPhoneCountryISO": "CN",
-                "DisplayPhoneNumber": "",
-                "EmailAddress": "",
-                "canary": canary,
-                "action": "Skip",
-                "PhoneNumber": "",
-                "PhoneCountryISO": ""
-            }
-            skip = client.post(url=url, data=body, headers=headers)
-
-            # 跳过摆脱密码束缚
-            url = skip.headers["Location"]
-            authenticator_cancel = client.post(url=url, headers=headers)
-            login_action = authenticator_cancel
+    add_proofs = do_submit(keep_login.text,client,headers)
+    if add_proofs:
+        canary = re.search(r'name="canary" value="(.+?)"',add_proofs.text).group(1)
+        skip_prove_body["canary"] = canary
+        skip_add_proof = client.post(url=url, data=skip_prove_body, headers=headers,follow_redirects=True)
+        params_respond = skip_add_proof
 
     # 登录Xbox
     
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
     headers["origin"] = "https://www.xbox.com"
-    code = re.search(r'code=(.+?)&',login_action.headers["Location"]).group(1)
+    code = re.search(r'code=(.+?)&',params_respond.headers["Location"]).group(1)
     body = {
     "client_id": client_id,
     "redirect_uri": "https://www.xbox.com/auth/msa?action=loggedIn&locale_hint=zh-HK",
