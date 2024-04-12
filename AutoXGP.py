@@ -272,16 +272,16 @@ def getXGP(account:str):
         "cv": "",
         "state": '{"ru":"https://www.xbox.com/zh-HK/xbox-game-pass/pc-game-pass","msaId":%s,"sid":"RETAIL"}' % msa_id
     }
-    login_in = client.get(url=url, params=params, headers=headers, follow_redirects=True)
+    logged_in = client.get(url=url, params=params, headers=headers, follow_redirects=True)
 
     # 创建Xbox档案
 
-    session_id_match = re.search(r'sid=(.+?)&',login_in.history[2].headers["Location"])
-    if session_id_match:
+    logged_in_redirects = logged_in.history
+    session_id_match = re.search(r'sid=(.+?)&',logged_in_redirects[2].headers["Location"])
+    if len(logged_in_redirects) > 2 and session_id_match:
         session_id = session_id_match.group(1)
         url = f"https://sisu.xboxlive.com/proxy?sessionid={session_id}"
-        headers["authorization"] = re.search(r'spt=(.+?)&',login_in.history[2].headers["Location"]).group(1)
-        xbox_prefix = config.get("Prefix", "xbox_prefix")
+        headers["authorization"] = re.search(r'spt=(.+?)&',logged_in_redirects[2].headers["Location"]).group(1)
         reservation_id = 1234567890
         body = {
             "GamertagReserve": {
@@ -291,6 +291,7 @@ def getXGP(account:str):
             }
         }
         # 测试代号是否可用
+        xbox_prefix = config.get("Prefix", "xbox_prefix")
         while True:
             xbox_gamertag = xbox_prefix + random_str(15 - len(xbox_prefix))
             body["GamertagReserve"]["Gamertag"] = xbox_gamertag
@@ -306,8 +307,9 @@ def getXGP(account:str):
             }
         }
         set_gamertag = client.post(url=url, json=body, headers=headers)
-        # current_gametag = set_gamertag.json["gamerTag"]
-        output(f"已设置Xbox玩家代号为:{xbox_gamertag}")
+        current_gamertag = set_gamertag.json()["gamerTag"]
+        if current_gamertag == xbox_gamertag:
+            output(f"已设置Xbox玩家代号为:{xbox_gamertag}")
 
         # 设置头像
         body = {
