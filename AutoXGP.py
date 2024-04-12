@@ -61,6 +61,21 @@ def fix_base64_str(string:str) -> str:
         string += "=" * (4 - length % 4)
     return string
 
+def do_submit(code:str, client:httpx.Client, headers:dict, redirects:bool=False) -> httpx.Response|None:
+    "发送JavaScript中的请求"
+    url_match = re.search(r'action="(.+?)"', code)
+    if url_match:
+        url = url_match.group(1)
+        method = re.search(r'method="(.+?)"', code).group(1)
+        items = re.findall(r'<input (.+?)>', code)
+        body = {}
+        for item in items:
+            name = re.search(r'name="(.+?)"', item).group(1)
+            value = re.search(r'value="(.+?)"', item).group(1)
+            body[name] = value
+        return client.request(method=method, url=url, data=body, headers=headers ,follow_redirects=redirects)
+    return None
+
 def getXGP(account:str):
     # 用于计算用时
     start_time = time.time()
@@ -723,15 +738,7 @@ def getXGP(account:str):
     headers.pop("authorization")
     billing_cancel = client.get(url=url, headers=headers, follow_redirects=True)
 
-    # 登录微软账户
-    url = "https://account.microsoft.com/auth/complete-signin?ru=https%3A%2F%2Faccount.microsoft.com%2Fservices%2Fpcgamepass%2Fcancel%3Ffref%3Dbilling-cancel&wa=wsignin1.0"
-    body = {
-        "pprid": re.search(r'id="pprid" value="(.+?)">', billing_cancel.text).group(1),
-        "NAP": re.search(r'id="NAP" value="(.+?)">', billing_cancel.text).group(1),
-        "ANON": re.search(r'id="ANON" value="(.+?)">', billing_cancel.text).group(1),
-        "t": re.search(r'id="t" value="(.+?)">', billing_cancel.text).group(1)
-    }
-    login_ms = client.post(url=url, data=body, headers=headers, follow_redirects=True)
+    login_ms = do_submit(login.text,client,headers,True)
 
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"
     client_id = "81feaced-5ddd-41e7-8bef-3e20a2689bb7"
