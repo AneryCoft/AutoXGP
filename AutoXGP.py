@@ -84,12 +84,15 @@ def getXGP(account:str):
     ms_email = parts[0]
     ms_password = parts[1]
 
-    client = httpx.Client(http2=True, proxies=proxy, verify=False, timeout=None)
+    client = httpx.Client(http2=True, proxy=proxy, verify=False, timeout=None)
+
     """
     for cookie in alipay_cookies:
         client.cookies.set(cookie["name"], cookie["value"], domain=cookie["domain"])
     """
-    
+
+    output(account)
+
     # OAuth2.0
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"
     client_id = "1f907974-e22b-4810-a9de-d9647380c97e"
@@ -154,7 +157,7 @@ def getXGP(account:str):
     post_email = client.post(url=url, headers=headers, json=body)
 
     if post_email.json()["IfExistsResult"] == 1:
-        output(f"微软账户错误:{ms_email}")
+        output(f"微软账户错误")
         return
 
     # 发送密码
@@ -729,9 +732,12 @@ def getXGP(account:str):
 
     # 取消订阅
 
+    # 登录微软账户
     url = "https://account.microsoft.com/services/pcgamepass/cancel?fref=billing-cancel"
     headers.pop("authorization")
-    billing_cancel = client.get(url=url, headers=headers, follow_redirects=True)
+    headers["referer"] = "https://account.microsoft.com/"
+    headers["origin"] = "https://account.microsoft.com"
+    login = client.get(url=url, headers=headers,follow_redirects=True)
 
     login_ms = do_submit(login.text,client,headers,True)
 
@@ -760,12 +766,9 @@ def getXGP(account:str):
         "nonce": str(uuid.uuid1()),
         "state": state
     }
-    headers["referer"] = "https://account.microsoft.com/"
     oauth2 = client.get(url=url, params=params, headers=headers, follow_redirects=True)
 
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
-    headers["origin"] = "https://account.microsoft.com"
-    headers["referer"] = "https://account.microsoft.com/"
     url_and_params = oauth2.history[1].headers["Location"]
     code = re.search(r"code=(.+?)&", url_and_params).group(1)
     body = {
@@ -795,18 +798,17 @@ def getXGP(account:str):
     headers["__requestverificationtoken"] = verification_token
     headers["ms-cv"] = client.cookies["AMC-MS-CV"]
     headers["referer"] = "https://account.microsoft.com/services/pcgamepass/cancel?fref=billing-cancel&refd=account.microsoft.com"
-    headers["x-edge-shopping-flag"]= "0"
     headers["x-requested-with"]= "XMLHttpRequest"
     headers["x-tzoffset"]= "480"
-    match_serviceId = re.search(r'"active":\[{"id":"(.+?)"',cancel_service_page.text)
-    if not match_serviceId:
+    match_service_id = re.search(r'"active":\[{"id":"(.+?)"',cancel_service_page.text)
+    if match_service_id:
+        service_id = match_service_id.group(1)
+    else:
         url = "https://account.microsoft.com/services/api/subscriptions-and-alerts?excludeWindowsStoreInstallOptions=false&excludeLegacySubscriptions=false"
         subscriptions_and_alerts = client.get(url=url, headers=headers)
-        serviceId = re.search(r'"id":"(.+?)"',subscriptions_and_alerts.text).group(1)
-    else:
-        serviceId = match_serviceId.group(1)
+        service_id = subscriptions_and_alerts.json()["active"][0]["id"]
     body = {
-        "serviceId":serviceId,
+        "serviceId":service_id,
         "serviceType":"recurrence",
         "refundAmount":29,
         "riskToken":"",
@@ -861,9 +863,8 @@ if __name__ == "__main__":
                 break
             else:
                 time.sleep(0.2)
-        driver.minimize_window()
+        
         alipay_cookies = driver.get_cookies()
-
         save_cookie = config.getboolean("Alipay", "saveCookie")
         if save_cookie:
             cookie_file.write(json.dumps(alipay_cookies))
@@ -873,6 +874,7 @@ if __name__ == "__main__":
         alipay_cookies = json.loads(alipay_cookies)
         for cookie in alipay_cookies:
             driver.add_cookie(cookie)
+    driver.minimize_window()
     cookie_file.close()
 
     # 获取支付宝支付密码
