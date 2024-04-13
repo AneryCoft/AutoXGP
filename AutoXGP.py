@@ -21,6 +21,7 @@ import uuid
 import json
 import threading
 from typing import List
+import traceback
 
  
 def output(message: str):
@@ -850,7 +851,7 @@ def assign_account(accounts:List[str]):
         try:
             getXGP(account)
         except Exception as e:
-            output(e)
+            traceback.print_exception(e)
 
 
 if __name__ == "__main__":
