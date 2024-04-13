@@ -820,6 +820,17 @@ def getXGP(account:str):
 
     output("已取消订阅并退款")
 
+    # 删除付款工具
+    url = "https://account.microsoft.com/auth/acquire-onbehalf-of-token?scopes=pidl"
+    acquire_token = client.get(url=url, headers=headers)
+
+    url = f"https://paymentinstruments.mp.microsoft.com/v6.0/users/me/paymentInstrumentsEx/{payment_instrument_id}?partner=northstarweb&language=zh-CN"
+    headers.pop("__requestverificationtoken")
+    headers["authorization"] = "MSADELEGATE1.0=" + acquire_token.json()[0]["token"]
+    delete_payment_instruments = client.delete(url=url, headers=headers)
+
+    output("已删除付款工具")
+
     lock.acquire()
     global XGP_file
     XGP_file.write(account + "\n")
