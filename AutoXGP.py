@@ -22,14 +22,14 @@ import json
 import threading
 from typing import List
 import traceback
+import datetime
 
  
 def output(message: str):
-    """
-    输出信息和时间
-    """
-    localTime = time.localtime()
-    print(f"[{localTime.tm_hour}:{localTime.tm_min}:{localTime.tm_sec}] {message}")
+    "输出时间 线程名 信息"
+    current_time = datetime.datetime.now().strftime("%H-%M-%S")
+    current_thread_name = threading.current_thread().name
+    print(f"[{current_time}] {current_thread_name} {message}")
 
 def random_str(length: int) -> str:
     "生成随机字符串"
@@ -853,10 +853,19 @@ def assign_account(accounts:List[str]):
         except Exception as e:
             traceback.print_exception(e)
 
+def set_title():
+    "设置控制台标题"
+    while True:
+        time_now = datetime.datetime.now().replace(microsecond=0)
+        elapsed = time_now - start_time
+        ctypes.windll.kernel32.SetConsoleTitleW(f"AutoXGP V{VERSION} | 用时:{elapsed}")
+        time.sleep(1.0)
 
 if __name__ == "__main__":
-    # 设置控制台标题
-    ctypes.windll.kernel32.SetConsoleTitleW("Auto Xbox Game Pass")
+    VERSION = "1.0"
+    start_time = datetime.datetime.now().replace(microsecond=0)
+    set_title_thread = threading.Thread(target=set_title,daemon=True)
+    set_title_thread.start()
 
     config = configparser.ConfigParser()
     config.read("config.ini")
