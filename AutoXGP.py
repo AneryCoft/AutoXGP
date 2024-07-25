@@ -572,15 +572,16 @@ def getXGP(account:str):
     addresses = client.post(url=url, json=body, headers=headers)
 
     # 订阅
-    url = "https://cart.production.store-web.dynamics.com/v1.0/Cart/PrepareCheckout?appId=BuyNow&perf=true&context=UpdateBillingInformation"
-    ms_cv = random_str(22)
-    headers["ms-cv"] = ms_cv + ".5"
+    url = "https://cart.production.store-web.dynamics.com/v1.0/Cart/PrepareCheckout?appId=BuyNow&context=UpdateBillingInformation"
+    headers["ms-cv"] = re.search(r'"cvServerStart":"(.+?)"',buy_xgp.text).group(1)
     headers["x-authorization-muid"] = re.search(r'"alternativeMuid":"(.+?)"',buy_xgp.text).group(1)
-    headers["x-ms-correlation-id"] = re.search(r'"correlationId":"(.+?)"',buy_xgp.text).group(1)
+    headers["x-ms-client-type"] = "XboxCom"
+    headers["x-ms-market"] = "HK"
     headers["x-ms-vector-id"] = re.search(r'"vectorId":"(.+?)"',buy_xgp.text).group(1)
     risk_id = re.search(r'"riskId":"(.+?)"',buy_xgp.text).group(1)
+    # flights = re.search(r'"flights":\[(.+?)\]', buy_xgp.text).group(1)
+    # flights = flights.replace('"',"").split(",")
     body = {
-        "buyNowScenario": "",
         "callerApplicationId": "_CONVERGED_XboxCom",
         "cartId": cart_id,
         "catalogClientType": "",
@@ -612,15 +613,13 @@ def getXGP(account:str):
     payment_session_descriptions = client.get(url=url, params=params, headers=headers)
 
     url = f"https://cart.production.store-web.dynamics.com/v1.0/Cart/purchase?appId=BuyNow"
-    headers["ms-cv"] = ms_cv + ".6"
     match_AddrId = re.search(r'<Id>(.+?)</Id>',addresses.text)
     if match_AddrId:
         addressId = match_AddrId.group(1)
     else:
         addressId = addresses.json()["id"]
     # addressId = re.search(r'"soldToAddressId":"(.+?)"',buy_xgp.text).group(1)
-    # flights = re.search(r'"flights":\[(.+?)\]', buy_xgp.text).group(1)
-    # flights = flights.replace('"',"").split(",")
+
     body = {
         "cartId": cart_id,
         "market": "HK",
@@ -665,7 +664,8 @@ def getXGP(account:str):
     headers.pop("authorization")
     headers.pop("ms-cv")
     headers.pop("x-authorization-muid")
-    headers.pop("x-ms-correlation-id")
+    headers.pop("x-ms-client-type")
+    headers.pop("x-ms-market")
     headers.pop("x-ms-vector-id")
     headers["referer"] = "https://www.minecraft.net/"
     headers["origin"] = "https://www.minecraft.net"
