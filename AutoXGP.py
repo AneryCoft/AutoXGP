@@ -390,13 +390,34 @@ def getXGP(account:str):
 
     # 订阅XGP
 
-    url = f"https://www.microsoft.com/store/buynow?noCanonical=true&market=HK&locale=zh-HK&clientName=XboxCom"
+    url = "https://www.microsoft.com/store/buynow?noCanonical=true&market=HK&locale=zh-HK&clientName=XboxCom"
     uhs = xbox_auth_2.json()["DisplayClaims"]["xui"][0]["uhs"]
     microsoft_token = xbox_auth_2.json()["Token"]
     XToken = f"XBL3.0 x={uhs};{microsoft_token}"
     body = {
-        "data": '{"products":[{"productId":"CFQ7TTC0KGQ8","skuId":"0002","availabilityId":"CFQ7TTC0KF41"}],"campaignId":"xboxcomct","callerApplicationId":"XboxCom","expId":["EX:sc_xboxgamepad","EX:sc_xboxspinner","EX:sc_xboxclosebutton","EX:sc_xboxuiexp","EX:sc_disabledefaultstyles","EX:sc_gamertaggifting"],"flights":["sc_xboxgamepad","sc_xboxspinner","sc_xboxclosebutton","sc_xboxuiexp","sc_disabledefaultstyles","sc_gamertaggifting"],"clientType":"XboxCom","data":{"usePurchaseSdk":true},"layout":"Modal","cssOverride":"XboxCom2NewUI","theme":"light","scenario":"","suppressGiftThankYouPage":false}',
-        "auth": '{"XToken":"%s"}' % XToken
+        "data": '{"usePurchaseSdk":true}',
+        "market": "HK",
+        "cV": "",
+        "locale": "zh-HK",
+        "xToken": XToken,
+        "pageFormat": "full",
+        "products": '[{"productId":"CFQ7TTC0KGQ8","skuId":"0002","availabilityId":"CFQ7TTC0L6B2"}]',
+        "campaignId": "xboxcomct",
+        "callerApplicationId": "XboxCom",
+        "expId": "EX:sc_xboxspinner,EX:sc_xboxclosebutton,EX:sc_xboxgamepad,EX:sc_xboxuiexp,EX:sc_disabledefaultstyles,EX:sc_gamertaggifting",
+        "flights[0]": "sc_xboxspinner",
+        "flights[1]": "sc_xboxclosebutton",
+        "flights[2]": "sc_xboxgamepad",
+        "flights[3]": "sc_xboxuiexp",
+        "flights[4]": "sc_disabledefaultstyles",
+        "flights[5]": "sc_gamertaggifting",
+        "urlRef": "https://www.xbox.com/zh-HK/auth/msa?action=loggedIn&locale_hint=zh-HK",
+        "clientType": "XboxCom",
+        "layout": "Modal",
+        "cssOverride": "XboxCom2NewUI",
+        "theme": "light",
+        "timeToInvokeIframe": "83329.29999999981",
+        "sdkVersion": "VERSION_PLACEHOLDER"
     }
     buy_xgp = client.post(url=url, data=body, headers=headers)
 
