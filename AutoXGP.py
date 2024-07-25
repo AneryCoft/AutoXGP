@@ -23,6 +23,7 @@ import threading
 from typing import List
 import traceback
 import datetime
+import execjs
 
  
 def output(message: str):
@@ -87,10 +88,8 @@ def getXGP(account:str):
 
     client = httpx.Client(http2=True, proxy=proxy, verify=False, timeout=None)
 
-    """
     for cookie in alipay_cookies:
         client.cookies.set(cookie["name"], cookie["value"], domain=cookie["domain"])
-    """
 
     output(account)
 
@@ -443,93 +442,65 @@ def getXGP(account:str):
     }
     payment_instruments_ex = client.post(url=url, json=body, headers=headers)
 
-    # 发送支付宝支付密码签约
-
-    """
-    redirectUrl = str(payment_instruments_ex.json()["details"]["redirectUrl"])
-    appSignUrl = str(payment_instruments_ex.json()["details"]["appSignUrl"]) # 此链接用于跳转到应用
-    url = (
-        parse.unquote(re.search(r"&url=(.+)", appSignUrl).group(1))
-        + "&return_url="
-        + parse.quote(redirectUrl)
-    )
-    # Worong sign
-    """
-
+    # 支付宝签约页面
     url = payment_instruments_ex.json()["clientAction"]["context"][0]["displayDescription"][0]["members"][3]["members"][0]["pidlAction"]["context"]["baseUrl"]
     payment_instrument_id = payment_instruments_ex.json()["id"]
     params = {
         "ru": f"https://www.microsoft.com/zh-HK/store/rds/v2/GeneralAddPISuccess?picvRequired=False&pendingOn=Notification&type=alipay_billing_agreement&family=ewallet&id={payment_instrument_id}",
         "rx": "https://www.microsoft.com/zh-HK/store/rds/v2/GeneralAddPIFailure"
     }
-    payment_instruments_ex = client.get(url=url, params=params, headers=headers)
-
-    url = payment_instruments_ex.headers["location"]
-    lock.acquire()
-    driver.get(url)
-    input_pay_password = driver.find_element(By.ID, "payPassword_rsainput").send_keys(alipay_pay_password)
-    agree = driver.find_element(By.ID, "J_submit").click()
-    # 代扣开通成功
-    driver.find_element(By.XPATH, '//*[@id="container"]/div/div[1]/p[1]')
-    lock.release()
-
-    # TODO Alipay pay password encrypt
-    """ 
-    direct_alipay = client.get(url=url, headers=headers)
-
-    url = direct_alipay.headers["Location"]
-    alipay_html = client.get(url=url, headers=headers)
-
+    headers.pop("origin")
+    headers.pop("authorization")
+    alipay_deduct = client.get(url=url, params=params, headers=headers, follow_redirects=True)
+    
+    # 发送支付宝支付密码签约
     url = "https://securitycore.alipay.com/securityAjaxValidate.json"
-    alieditUid = re.search(r'name="alieditUid" value="(.+?)"',alipay_html.text).group(1)
-    securityId = re.search(r'name="securityId" value="(.+?)"',alipay_html.text).group(1)
-    payPassword = ""
-    key_seq = ""
+    aliedit_uid = re.search(r'name="alieditUid" value="(.+?)"',alipay_deduct.text).group(1)
+    security_id = re.search(r'name="securityId" value="(.+?)"',alipay_deduct.text).group(1)
+
+    PK = re.search(r'PK: "(.+?)"',alipay_deduct.text).group(1)
+    TS = re.search(r'TS: "(.+?)"',alipay_deduct.text).group(1)
+    ksk = re.search(r"ksk: '(.+?)'",alipay_deduct.text).group(1)
+    pay_password:str = alipay_encrypt_js.call("securityPassword",alipay_pay_password,PK,TS)
+    key_seq:str = alipay_encrypt_js.call("getKeySeq",ksk)
+
     params = {
         "sendCount": "3",
         "dataId": int(time.time() * 1000),
         "dataSize": "1",
         "dataIndex": "0",
-        "dataContent": {
-            "payment_password": {
-                "J_aliedit_key_hidn": "payPassword",
-                "J_aliedit_uid_hidn": "alieditUid",
-                "J_aliedit_using": "true",
-                "payPassword": payPassword,
-                "alieditUid": alieditUid,
-                "ks": key_seq,
-                "security_activeX_enabled": "false",
-            }
-        },
+        "dataContent": '{"payment_password":{"J_aliedit_key_hidn":"payPassword","J_aliedit_uid_hidn":"alieditUid","J_aliedit_using":true,"payPassword":"%s","alieditUid":"%s","ks":"%s","security_activeX_enabled":false}}'
+        % (pay_password, aliedit_uid, key_seq),
         "_callback": "light.packetRequest._packetCallbacks.callback0",
-        "securityId": securityId,
+        "securityId": security_id,
         "orderId": "null"
     }
+    headers["referer"] = "https://mdeduct.alipay.com/"
     post_pay_password = client.get(url=url, params=params, headers=headers)
 
     url = "https://mdeduct.alipay.com/customer/customerAgreementSignConfirm.htm"
     headers["origin"] = "https://mdeduct.alipay.com"
-    headers["referer"] = direct_alipay.headers["Location"]
-    _form_token = re.search(r'name="_form_token" value=""(.+?)"',alipay_html.text).group(1)
-    cacheContextId = re.search(r'name="cacheContextId" value=""(.+?)"',alipay_html.text).group(1)
-    e_i_i_d = re.search(r'name="e_i_i_d" value=""(.+?)"',alipay_html.text).group(1)
-    userLogonId = re.search(r'name="userLogonId" value=""(.+?)"',alipay_html.text).group(1)
+    headers["referer"] = str(alipay_deduct.url)
+    _form_token = re.search(r'name="_form_token" value="(.+?)"',alipay_deduct.text).group(1)
+    cache_context_id = re.search(r'name="cacheContextId" value="(.+?)"',alipay_deduct.text).group(1)
+    e_i_i_d = re.search(r'name="e_i_i_d" value="(.+?)"',alipay_deduct.text).group(1)
+    user_logon_id = re.search(r'name="userLogonId" value="(.+?)"',alipay_deduct.text).group(1)
     body = {
         "_form_token" : _form_token,
         "signFlag" : "signConfirmFromPC",
-        "cacheContextId" : cacheContextId,
+        "cacheContextId" : cache_context_id,
         "notNeedMobileCodeCheck" : "false",
         "e_i_i_d":e_i_i_d,
         "i_c_i_d":"",
-        "userLogonId" : userLogonId,
-        "securityId" : securityId,
+        "userLogonId" : user_logon_id,
+        "securityId" : security_id,
         "payPassword_input": "",
         "payPassword_rsainput":"",
         "J_aliedit_using": "true",
         "payPassword": "",
         "J_aliedit_key_hidn": "payPassword",
         "J_aliedit_uid_hidn": "alieditUid",
-        "alieditUid": alieditUid,
+        "alieditUid": aliedit_uid,
         "REMOTE_PCID_NAME": "_seaside_gogo_pcid",
         "_seaside_gogo_pcid": "",
         "_seaside_gogo_": "",
@@ -539,16 +510,18 @@ def getXGP(account:str):
         "J_aliedit_net_info": ""
     }
     sign_confirm = client.post(url=url, data=body, headers=headers)
-    """
 
-    """
-    url = sign_confirm.headers["Location"]
-    agreement_operation_result = client.get(url=url, headers=headers)
-    """
+    headers["origin"] = "https://www.microsoft.com"
+    headers["referer"] = "https://www.microsoft.com/"
+    headers["authorization"] = XToken
 
     # 确认使用支付宝订阅
     url = f"https://paymentinstruments.mp.microsoft.com/v6.0/users/me/paymentInstrumentsEx/{payment_instrument_id}?language=zh-CHT&partner=webblends&country=hk&completePrerequisites=True"
-    add_alipay = client.get(url=url, headers=headers)
+    while True:
+        add_alipay = client.get(url=url, headers=headers)
+        status = add_alipay.json()["status"]
+        if status != "Pending": # Active
+            break
 
     # 设置姓名
     url = "https://paymentinstruments.mp.microsoft.com/v6.0/users/me/profiles"
@@ -871,11 +844,11 @@ if __name__ == "__main__":
     config.read("config.ini")
 
     # 获取支付宝登录Cookie
+
     cookie_file = open("alipayCookies.json", "r+")
     alipay_cookies = cookie_file.read()
-    driver = edge(False)
-    driver.implicitly_wait(5.0)
     if alipay_cookies == "":
+        driver = edge(False)
         driver.get("https://auth.alipay.com/login/index.htm?goto=https%3A%2F%2Fwww.alipay.com%2F")
         output("扫码以登录支付宝")
         # 判断是否已扫码
@@ -889,17 +862,19 @@ if __name__ == "__main__":
         save_cookie = config.getboolean("Alipay", "saveCookie")
         if save_cookie:
             cookie_file.write(json.dumps(alipay_cookies))
+            cookie_file.close()
             output("已保存支付宝Cookies")
+        driver.quit()
     else:
-        driver.get("https://www.alipay.com/")
         alipay_cookies = json.loads(alipay_cookies)
-        for cookie in alipay_cookies:
-            driver.add_cookie(cookie)
-    driver.minimize_window()
-    cookie_file.close()
+
+    # 编译JavaScript
+    js_file = open("alipayEncrypt.js","r")
+    alipay_encrypt_js = execjs.compile(js_file.read())
+    js_file.close()
 
     # 获取支付宝支付密码
-    alipay_pay_password = config.getint("Alipay", "payPassword")
+    alipay_pay_password:str = config.get("Alipay", "payPassword")
     if alipay_pay_password == "":
         alipay_pay_password = input("输入你的支付宝支付密码:")
         config.set("Alipay", "payPassword", alipay_pay_password)
@@ -935,4 +910,3 @@ if __name__ == "__main__":
         thread.join()
     
     XGP_file.close()
-    driver.quit()
