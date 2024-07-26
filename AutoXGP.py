@@ -604,21 +604,22 @@ def getXGP(account:str):
 
     url = "https://paymentinstruments.mp.microsoft.com/v6.0/users/me/PaymentSessionDescriptions"
     piid = payment_instrument_id
-    piCid = add_alipay.json()["accountId"]
-    purchaseOrderId = cart_id
+    pi_cid = add_alipay.json()["accountId"]
+    purchase_order_id = cart_id
     params = {
-        "paymentSessionData" : '{"piid":"%s","language":"zh-HK","partner":"webblends","piCid":"%s","amount":29,"currency":"HKD","country":"HK","hasPreOrder":"false","challengeScenario":"RecurringTransaction","challengeWindowSize":"03","purchaseOrderId":"%s"}' % (piid,piCid,purchaseOrderId),
+        "paymentSessionData" : '{"piid":"%s","language":"zh-HK","partner":"webblends","piCid":"%s","amount":29,"currency":"HKD","country":"HK","hasPreOrder":"false","challengeScenario":"RecurringTransaction","challengeWindowSize":"03","purchaseOrderId":"%s"}' % (piid,pi_cid,purchase_order_id),
         "operation": "Add"
     }
     payment_session_descriptions = client.get(url=url, params=params, headers=headers)
 
     url = f"https://cart.production.store-web.dynamics.com/v1.0/Cart/purchase?appId=BuyNow"
-    match_AddrId = re.search(r'<Id>(.+?)</Id>',addresses.text)
-    if match_AddrId:
-        addressId = match_AddrId.group(1)
+    match_addr_id = re.search(r'<Id>(.+?)</Id>',addresses.text)
+    address_id:str
+    if match_addr_id:
+        address_id = match_addr_id.group(1)
     else:
-        addressId = addresses.json()["id"]
-    # addressId = re.search(r'"soldToAddressId":"(.+?)"',buy_xgp.text).group(1)
+        address_id = addresses.json()["id"]
+    # address_id = re.search(r'"soldToAddressId":"(.+?)"',buy_xgp.text).group(1)
 
     body = {
         "cartId": cart_id,
@@ -638,8 +639,8 @@ def getXGP(account:str):
         "email": ms_email,
         "csvTopOffPaymentInstrumentId": None,
         "billingAddressId": {
-            "accountId": piCid,
-            "id": addressId
+            "accountId": pi_cid,
+            "id": address_id
         },
         "currentOrderState": "CheckingOut",
         "flights": [],
@@ -721,8 +722,8 @@ def getXGP(account:str):
         skin_path = config["Skin"]["skin"]
         skin_file = open(skin_path,"rb")
         skin = {"file":skin_file}
-        customSkin = client.post(url=url, headers=headers, data=body, files=skin)
-        if customSkin.is_success:
+        custom_skin = client.post(url=url, headers=headers, data=body, files=skin)
+        if custom_skin.is_success:
             output("已设置Minecraft皮肤")
 
     # 取消订阅
